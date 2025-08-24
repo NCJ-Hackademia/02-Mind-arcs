@@ -47,16 +47,34 @@ export default function CameraUploadPage() {
     setUseCamera(false);
   };
 
-  const fetchBackendData = async () => {
+  // 🔹 Upload image and fetch processed data
+  const uploadImageToBackend = async () => {
+    if (!selectedImage) return;
+
+    const fileInput = document.querySelector('input[type="file"]');
+    if (!fileInput || !fileInput.files[0]) return;
+
+    const file = fileInput.files[0];
+
+    const formData = new FormData();
+    formData.append("image", file);
+    formData.append("preferences", JSON.stringify(["grayscale","deuteranopia"]));
+    formData.append("ocr_language", "eng");
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/getColor");
+      const res = await fetch("http://127.0.0.1:8000/api/upload-image/", {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
       setDetectedResult(data);
 
-      // 🔊 Speak aloud
-      speakText(`Color detected is ${data.color}. Instruction: ${data.instruction}`);
+      // 🔊 Speak OCR text
+      if (data.extracted_text) {
+        speakText(data.extracted_text);
+      }
     } catch (err) {
-      console.error("Error fetching data:", err);
+      console.error("Error uploading image:", err);
     }
   };
 
@@ -102,16 +120,24 @@ export default function CameraUploadPage() {
 
         <button 
           className="btn btn-success mt-3 result-button" 
-          onClick={fetchBackendData}
+          onClick={uploadImageToBackend}
         >
-          Get Result & Speak
+          Process Image & Speak
         </button>
       </div>
 
       {detectedResult && (
         <div className="mt-4 alert alert-info">
-          <p><b>Detected Color:</b> {detectedResult.color}</p>
-          <p><b>Instruction:</b> {detectedResult.instruction}</p>
+          <p><b>OCR Text:</b> {detectedResult.extracted_text}</p>
+          {detectedResult.processed_image_url && (
+            <img 
+              src={detectedResult.processed_image_url} 
+              alt="Processed" 
+              className="img-fluid rounded mt-3"
+              style={{ maxWidth: "500px" }}
+            />
+          )}
+          <p><b>Applied Filters:</b> {detectedResult.applied_filters.join(", ")}</p>
         </div>
       )}
     </div>

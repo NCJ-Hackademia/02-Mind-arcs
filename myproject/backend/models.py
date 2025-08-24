@@ -2,6 +2,12 @@ from django.db import models
 
 
 
+class Image(models.Model):
+    image = models.ImageField(upload_to='images/')
+    preferences = models.JSONField()
+    ocr_language = models.CharField(max_length=10)
+
+
 class UserPreference(models.Model):
 
     

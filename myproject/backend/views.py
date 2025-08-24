@@ -7,6 +7,9 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from .models import Image
+from .serializers import ImageSerializer
+
 from .serializers import PreferenceSerializer
 from .models import UserPreference
 import uuid  
@@ -33,6 +36,7 @@ import json
 from backend.models import UserPreference
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
 
 
 
