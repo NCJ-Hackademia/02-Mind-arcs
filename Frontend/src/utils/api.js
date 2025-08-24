@@ -1,25 +1,15 @@
-/*import axios from 'axios';
+import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 export const analyzeImage = async (imageFile, colorblindType) => {
   const formData = new FormData();
   formData.append('image', imageFile);
-  formData.append('type', colorblindType);
+  formData.append('preferences', JSON.stringify([colorblindType]));
+  formData.append('ocr_language', 'eng');
 
-  const response = await axios.post(`${API_BASE_URL}/analyze`, formData, {
+  const response = await axios.post(`${API_BASE_URL}/upload-image/`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
-};*/
-export const analyzeImage = async (imageFile, colorblindType) => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        colors: ['Red', 'Green'],
-        text: 'Sample description',
-        meaning: 'Test meaning'
-      });
-    }, 1000);
-  });
 };

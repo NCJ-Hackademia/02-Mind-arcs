@@ -15,6 +15,7 @@ function speakText(text) {
 
 export default function CameraUploadPage() {
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [useCamera, setUseCamera] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [detectedResult, setDetectedResult] = useState(null); // backend result
@@ -47,14 +48,38 @@ export default function CameraUploadPage() {
     setUseCamera(false);
   };
 
+  // 🔹 Capture image from live camera
+  const captureImage = () => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      const file = new File([blob], "captured.png", { type: "image/png" });
+      setSelectedImage(URL.createObjectURL(file));
+
+      // store file in a ref for backend upload
+      canvas.file = file;
+    });
+  };
+
   // 🔹 Upload image and fetch processed data
   const uploadImageToBackend = async () => {
-    if (!selectedImage) return;
+    let file = null;
 
-    const fileInput = document.querySelector('input[type="file"]');
-    if (!fileInput || !fileInput.files[0]) return;
-
-    const file = fileInput.files[0];
+    // prefer captured file from canvas if camera used
+    if (useCamera && canvasRef.current?.file) {
+      file = canvasRef.current.file;
+    } else {
+      const fileInput = document.querySelector('input[type="file"]');
+      if (!fileInput || !fileInput.files[0]) return;
+      file = fileInput.files[0];
+    }
 
     const formData = new FormData();
     formData.append("image", file);
@@ -98,15 +123,24 @@ export default function CameraUploadPage() {
         />
       </div>
 
-      {/* Container for image/video + button */}
+      {/* Video + canvas + capture button */}
       <div className="mt-4 upload-container">
         {useCamera && (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            style={{ width: "100%", maxWidth: "500px", borderRadius: "10px" }}
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              style={{ width: "100%", maxWidth: "500px", borderRadius: "10px" }}
+            />
+            <button
+              className="btn btn-warning mt-2"
+              onClick={captureImage}
+            >
+              Capture Image
+            </button>
+            <canvas ref={canvasRef} style={{ display: "none" }} />
+          </>
         )}
 
         {selectedImage && (
