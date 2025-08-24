@@ -157,41 +157,54 @@ def generate_sign_alerts(detected_signs):
         'construction': "Construction zone ahead. Slow down and follow posted signs.",
         'parking': "Parking sign detected.",
         'exit': "Exit sign detected.",
-        'entrance': "Entrance sign detected."
+        'entrance': "Entrance sign detected.",
+        'default': "Traffic sign detected. Please proceed with caution."
     }
     
     for sign in detected_signs:
-        sign_type = sign['type']
-        if sign_type in alert_messages:
-            alerts.append({
-                'type': sign_type,
-                'message': alert_messages[sign_type],
-                'priority': 'high' if sign_type in ['stop', 'yield', 'caution', 'school'] else 'medium'
-            })
+        sign_type = sign.get('type', 'default')
+        message = alert_messages.get(sign_type, alert_messages['default'])
+        alerts.append({
+            'type': sign_type,
+            'message': message,
+            'confidence': sign.get('confidence', 0.5)
+        })
     
     return alerts
 
 def generate_audio_message(text, detected_signs):
-    """Generate comprehensive audio message for the user"""
+    """Generate comprehensive audio message including text and sign alerts"""
     messages = []
     
-    # Add detected text
-    if text.strip():
-        messages.append(f"Text detected: {text.strip()}")
+    # Add sign-specific alerts first (higher priority)
+    if detected_signs:
+        for sign in detected_signs:
+            sign_type = sign.get('type')
+            if sign_type == 'stop':
+                messages.append("STOP SIGN detected! Come to a complete stop.")
+            elif sign_type == 'yield':
+                messages.append("YIELD SIGN detected! Slow down and yield to traffic.")
+            elif sign_type == 'speed_limit':
+                messages.append("SPEED LIMIT SIGN detected! Check your speed.")
+            elif sign_type == 'no_entry':
+                messages.append("NO ENTRY SIGN detected! Do not proceed.")
+            elif sign_type == 'caution':
+                messages.append("CAUTION SIGN detected! Proceed carefully.")
+            elif sign_type == 'school':
+                messages.append("SCHOOL ZONE SIGN detected! Reduce speed.")
+            else:
+                messages.append(f"{sign_type.replace('_', ' ').title()} sign detected.")
     
-    # Add sign alerts
-    high_priority_signs = [alert for alert in generate_sign_alerts(detected_signs) if alert['priority'] == 'high']
+    # Add text content
+    if text and text != "No text detected in image":
+        if detected_signs:
+            messages.append(f"Sign text reads: {text}")
+        else:
+            messages.append(f"Text detected: {text}")
+    elif not detected_signs:
+        messages.append("Image processed successfully.")
     
-    if high_priority_signs:
-        for alert in high_priority_signs:
-            messages.append(alert['message'])
-    
-    # If no high priority signs, mention other signs
-    elif detected_signs:
-        sign_types = [sign['type'].replace('_', ' ') for sign in detected_signs]
-        messages.append(f"Signs detected: {', '.join(sign_types)}")
-    
-    return ' '.join(messages) if messages else "Image processed successfully."
+    return " ".join(messages)
 
 
 
@@ -332,14 +345,42 @@ def upload_image(request):
         else:
             text = "EasyOCR not available"
         
-        # ---- Step 4: Visual Object Detection (Optional) ----
+        # ---- Step 4: Visual Object Detection & Sign Classification ----
         visual_objects = detect_visual_objects(file_full_path)
         
-        # No sign detection - removed per user request
+        # Enhanced sign detection from OCR text and visual objects
         detected_signs = []
         sign_alerts = []
         
-        # Visual objects already processed in step 4
+        # Analyze OCR text for sign types
+        if text and text.strip() != "No text detected in image":
+            text_lower = text.lower()
+            
+            # Check for specific sign types in the text
+            if 'stop' in text_lower:
+                detected_signs.append({'type': 'stop', 'confidence': 0.9, 'source': 'text'})
+            elif any(word in text_lower for word in ['yield', 'give way']):
+                detected_signs.append({'type': 'yield', 'confidence': 0.8, 'source': 'text'})
+            elif any(word in text_lower for word in ['speed', 'limit', 'mph', 'km/h']):
+                detected_signs.append({'type': 'speed_limit', 'confidence': 0.8, 'source': 'text'})
+            elif any(word in text_lower for word in ['no entry', 'do not enter', 'authorized']):
+                detected_signs.append({'type': 'no_entry', 'confidence': 0.8, 'source': 'text'})
+            elif 'one way' in text_lower:
+                detected_signs.append({'type': 'one_way', 'confidence': 0.8, 'source': 'text'})
+            elif any(word in text_lower for word in ['caution', 'warning', 'danger']):
+                detected_signs.append({'type': 'caution', 'confidence': 0.7, 'source': 'text'})
+            elif any(word in text_lower for word in ['school', 'children']):
+                detected_signs.append({'type': 'school', 'confidence': 0.8, 'source': 'text'})
+            elif any(word in text_lower for word in ['construction', 'work zone', 'road work']):
+                detected_signs.append({'type': 'construction', 'confidence': 0.8, 'source': 'text'})
+            elif any(word in text_lower for word in ['parking', 'no parking', 'park']):
+                detected_signs.append({'type': 'parking', 'confidence': 0.7, 'source': 'text'})
+            elif 'exit' in text_lower:
+                detected_signs.append({'type': 'exit', 'confidence': 0.7, 'source': 'text'})
+        
+        # Generate alerts for detected signs
+        if detected_signs:
+            sign_alerts = generate_sign_alerts(detected_signs)
 
 
         # ---- Step 6: Save processed image ----
@@ -358,7 +399,9 @@ def upload_image(request):
             "processed_image_url": processed_image_url,
             "extracted_text": text.strip(),
             "visual_objects": visual_objects,
-            "audio_message": f"Text detected: {text.strip()}" if text.strip() and text.strip() != "No text detected in image" else "Image processed successfully.",
+            "audio_message": generate_audio_message(text.strip(), detected_signs),
+            "detected_signs": detected_signs,
+            "sign_alerts": sign_alerts,
             "easyocr_available": EASYOCR_AVAILABLE,
             "ocr_details": ocr_results if EASYOCR_AVAILABLE else [],
             "ai_model_available": AI_MODEL_AVAILABLE
